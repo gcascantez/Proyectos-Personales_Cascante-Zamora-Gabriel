@@ -30,8 +30,11 @@ def unir_portada_con_nombre_original(pdf_principal, carpeta_fuente):
 # =====================================================================
 
 # Reemplaza lo que está entre comillas con las rutas reales de tu computadora:
-pdf_unico = r"C:\Users\gcasc\OneDrive - Estudiantes ITCR\UUUU\IS 2026\Asistencia DT\Planeamiento actividades\Actividad 5\2026_IS_DT_PS5_RUBRICA.pdf"
-carpeta_con_pdfs = r"C:\Users\gcasc\OneDrive - Estudiantes ITCR\UUUU\IS 2026\Asistencia DT\Revisiones de prácticas supervisadas\PS5\G21\Entregas Estudiantes" 
+pdf_unico = r"dirección de pdf principal" # CAMBIAR A PATH
+carpeta_con_pdfs = r"dirección de carpeta" # CAMBIAR A PATH
 
 # Ejecutar la función
 unir_portada_con_nombre_original(pdf_unico, carpeta_con_pdfs)
+
+# Arrancar la aplicación
+ventana.mainloop()
