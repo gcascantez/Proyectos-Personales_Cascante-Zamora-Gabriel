@@ -17,18 +17,27 @@ class DataProcessorApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("Procesador de Datos - Histograma & Boxplot")
+        self.title("Procesador de Datos - Histograma & Boxplots Múltiples")
         self.geometry("1150x750")
         self.minsize(950, 650)
 
-        # Almacenamiento de datos
-        self.datos = np.array([], dtype=np.float64)
+        # Almacenamiento de múltiples conjuntos de datos { "Nombre": np.array([...]) }
+        self.grupos = {}
         
         # Canvas para gráficos
         self.canvas_histograma = None
         self.canvas_boxplot = None
 
         self._crear_interfaz()
+
+        # Manejo limpio al cerrar la ventana
+        self.protocol("WM_DELETE_WINDOW", self.destroy)
+
+    def destroy(self):
+        # Cerrar las figuras de matplotlib activas
+        plt.close("all")
+        # Llamar al destroy original de CustomTkinter/Tkinter
+        super().destroy()
 
     def _crear_interfaz(self):
         self.grid_columnconfigure(0, weight=1)
@@ -48,6 +57,19 @@ class DataProcessorApp(ctk.CTk):
             font=ctk.CTkFont(size=16, weight="bold"),
         ).pack(anchor="w", padx=10, pady=(10, 5))
 
+        # Nombre del Conjunto
+        ctk.CTkLabel(
+            self.panel_control,
+            text="Nombre de la Muestra / Serie:",
+            font=ctk.CTkFont(size=11, weight="bold"),
+        ).pack(anchor="w", padx=10, pady=(5, 2))
+
+        self.ent_nombre_grupo = ctk.CTkEntry(
+            self.panel_control, placeholder_text="Ej: Muestra A"
+        )
+        self.ent_nombre_grupo.pack(fill="x", padx=10, pady=(0, 10))
+
+        # Opción CSV
         self.btn_cargar_csv = ctk.CTkButton(
             self.panel_control,
             text="📁 Seleccionar CSV",
@@ -76,19 +98,19 @@ class DataProcessorApp(ctk.CTk):
             font=ctk.CTkFont(size=11),
         ).pack(anchor="w", padx=10, pady=(10, 2))
 
-        self.txt_manual = ctk.CTkTextbox(self.panel_control, height=70)
+        self.txt_manual = ctk.CTkTextbox(self.panel_control, height=65)
         self.txt_manual.pack(fill="x", padx=10, pady=2)
 
         self.btn_cargar_manual = ctk.CTkButton(
             self.panel_control,
-            text="➕ Agregar Manuales",
+            text="➕ Agregar Conjunto Manual",
             command=self.cargar_manual,
         )
         self.btn_cargar_manual.pack(fill="x", padx=10, pady=5)
 
         self.btn_limpiar = ctk.CTkButton(
             self.panel_control,
-            text="🗑️ Limpiar Datos",
+            text="🗑️ Limpiar Todos los Datos",
             fg_color="#D32F2F",
             hover_color="#9A0007",
             command=self.limpiar_datos,
@@ -106,6 +128,17 @@ class DataProcessorApp(ctk.CTk):
             text="2. Configuración Histograma",
             font=ctk.CTkFont(size=16, weight="bold"),
         ).pack(anchor="w", padx=10, pady=(5, 5))
+
+        ctk.CTkLabel(
+            self.panel_control,
+            text="Muestra a Graficar:",
+            font=ctk.CTkFont(size=11),
+        ).pack(anchor="w", padx=10, pady=(2, 2))
+
+        self.combo_grupo_hist = ctk.CTkComboBox(
+            self.panel_control, values=["N/A"], state="disabled"
+        )
+        self.combo_grupo_hist.pack(fill="x", padx=10, pady=5)
 
         self.var_etiqueta = ctk.StringVar(value="marca")
 
@@ -143,7 +176,7 @@ class DataProcessorApp(ctk.CTk):
 
         self.btn_generar_boxplot = ctk.CTkButton(
             self.panel_control,
-            text="📦 Generar Boxplot",
+            text="📦 Generar Boxplots Múltiples",
             fg_color="#0277BD",
             hover_color="#01579B",
             command=self.generar_boxplot,
@@ -165,7 +198,7 @@ class DataProcessorApp(ctk.CTk):
 
         self.lbl_resumen = ctk.CTkLabel(
             self.panel_main,
-            text="Total de registros: 0",
+            text="Conjuntos cargados: 0",
             font=ctk.CTkFont(size=12),
             justify="left",
         )
@@ -188,7 +221,7 @@ class DataProcessorApp(ctk.CTk):
 
         self.lbl_ph_box = ctk.CTkLabel(
             self.tab_box,
-            text="Carga datos y presiona 'Generar Boxplot'",
+            text="Carga datos y presiona 'Generar Boxplots Múltiples'",
             font=ctk.CTkFont(size=15, slant="italic"),
         )
         self.lbl_ph_box.place(relx=0.5, rely=0.5, anchor="center")
@@ -198,15 +231,19 @@ class DataProcessorApp(ctk.CTk):
     # =========================================================================
 
     def generar_histograma(self):
-        n = len(self.datos)
-        if n == 0:
-            messagebox.showwarning("Atención", "Primero debes cargar datos numéricos.")
+        nombre_grupo = self.combo_grupo_hist.get()
+        if not nombre_grupo or nombre_grupo not in self.grupos:
+            messagebox.showwarning(
+                "Atención", "Selecciona una muestra válida para el histograma."
+            )
             return
 
         self.tabview.set("Histograma")
+        datos = self.grupos[nombre_grupo]
+        n = len(datos)
 
         num_clases = math.ceil(math.sqrt(n))
-        v_min, v_max = np.min(self.datos), np.max(self.datos)
+        v_min, v_max = np.min(datos), np.max(datos)
 
         if v_min == v_max:
             v_min -= 0.5
@@ -218,7 +255,7 @@ class DataProcessorApp(ctk.CTk):
         ancho_clase = (v_max_adj - v_min_adj) / num_clases
 
         bins = [v_min_adj + i * ancho_clase for i in range(num_clases + 1)]
-        frecuencias, _ = np.histogram(self.datos, bins=bins)
+        frecuencias, _ = np.histogram(datos, bins=bins)
 
         etiquetas_x = []
         modo_etiqueta = self.var_etiqueta.get()
@@ -231,9 +268,13 @@ class DataProcessorApp(ctk.CTk):
             else:
                 etiquetas_x.append(f"[{l_inf:.2f}, {l_sup:.2f}]")
 
-        self._renderizar_histograma(frecuencias, etiquetas_x, num_clases, ancho_clase)
+        self._renderizar_histograma(
+            frecuencias, etiquetas_x, num_clases, ancho_clase, nombre_grupo
+        )
 
-    def _renderizar_histograma(self, frecuencias, etiquetas_x, num_clases, ancho_clase):
+    def _renderizar_histograma(
+        self, frecuencias, etiquetas_x, num_clases, ancho_clase, titulo_muestra
+    ):
         if self.canvas_histograma:
             self.canvas_histograma.get_tk_widget().destroy()
 
@@ -260,12 +301,14 @@ class DataProcessorApp(ctk.CTk):
         )
 
         ax.set_title(
-            f"Histograma (Clases = {num_clases} | Ancho ≈ {ancho_clase:.4f})",
-            fontsize=12,
+            f"Histograma: {titulo_muestra} (Clases = {num_clases} | Ancho ≈ {ancho_clase:.4f})",
+            fontsize=11,
             fontweight="bold",
         )
         ax.set_xlabel(
-            "Marcas de Clase" if self.var_etiqueta.get() == "marca" else "Intervalos [Vmin, Vmax]",
+            "Marcas de Clase"
+            if self.var_etiqueta.get() == "marca"
+            else "Intervalos [Vmin, Vmax]",
             fontsize=10,
         )
         ax.set_ylabel("Frecuencia Absoluta", fontsize=10)
@@ -289,45 +332,20 @@ class DataProcessorApp(ctk.CTk):
         self.canvas_histograma.get_tk_widget().pack(fill="both", expand=True)
 
     # =========================================================================
-    # LÓGICA DEL DIAGRAMA DE CAJAS Y BIGOTES (BOXPLOT)
+    # LÓGICA DEL DIAGRAMA DE CAJAS Y BIGOTES (MÚLTIPLE)
     # =========================================================================
 
     def generar_boxplot(self):
-        n = len(self.datos)
-        if n == 0:
-            messagebox.showwarning("Atención", "Primero debes cargar datos numéricos.")
+        if not self.grupos:
+            messagebox.showwarning(
+                "Atención", "Primero debes cargar al menos un conjunto de datos."
+            )
             return
 
         self.tabview.set("Diagrama de Cajas y Bigotes")
+        self._renderizar_boxplot_multiple(self.grupos)
 
-        # 1. Cálculo explícito de Cuartiles y RIQ
-        q1 = np.percentile(self.datos, 25)
-        q2 = np.percentile(self.datos, 50)  # Mediana
-        q3 = np.percentile(self.datos, 75)
-        riq = q3 - q1
-
-        # 2. Límites teóricos para bigotes (1.5 * RIQ)
-        lim_inf_teorico = q1 - 1.5 * riq
-        lim_sup_teorico = q3 + 1.5 * riq
-
-        # 3. Recorte de bigotes a los datos reales dentro del rango
-        datos_dentro = self.datos[
-            (self.datos >= lim_inf_teorico) & (self.datos <= lim_sup_teorico)
-        ]
-        
-        bigote_inf = np.min(datos_dentro) if len(datos_dentro) > 0 else q1
-        bigote_sup = np.max(datos_dentro) if len(datos_dentro) > 0 else q3
-
-        # Outliers (puntos fuera de los bigotes)
-        outliers = self.datos[
-            (self.datos < lim_inf_teorico) | (self.datos > lim_sup_teorico)
-        ]
-
-        self._renderizar_boxplot(q1, q2, q3, riq, bigote_inf, bigote_sup, outliers)
-
-    def _renderizar_boxplot(
-        self, q1, q2, q3, riq, bigote_inf, bigote_sup, outliers
-    ):
+    def _renderizar_boxplot_multiple(self, diccionario_grupos):
         if self.canvas_boxplot:
             self.canvas_boxplot.get_tk_widget().destroy()
 
@@ -336,7 +354,9 @@ class DataProcessorApp(ctk.CTk):
 
         fig, ax = plt.subplots(figsize=(7, 4.5), dpi=100)
 
-        # Propiedades del boxplot
+        nombres = list(diccionario_grupos.keys())
+        datos_grupos = list(diccionario_grupos.values())
+
         flierprops = dict(
             marker="o",
             markerfacecolor="none",
@@ -344,28 +364,32 @@ class DataProcessorApp(ctk.CTk):
             markersize=6,
             linestyle="none",
         )
-        boxprops = dict(facecolor="#90CAF9", color="#0D47A1", linewidth=1.5)
-        whiskerprops = dict(color="#0D47A1", linewidth=1.5)
-        capprops = dict(color="#0D47A1", linewidth=1.5)
         medianprops = dict(color="#B71C1C", linewidth=2.0)
+        whiskerprops = dict(color="#333333", linewidth=1.5)
+        capprops = dict(color="#333333", linewidth=1.5)
 
-        # Creación del Boxplot con matplotlib (usando tick_labels)
-        ax.boxplot(
-            self.datos,
+        bp = ax.boxplot(
+            datos_grupos,
             orientation="vertical",
             patch_artist=True,
             whis=1.5,
             flierprops=flierprops,
-            boxprops=boxprops,
+            medianprops=medianprops,
             whiskerprops=whiskerprops,
             capprops=capprops,
-            medianprops=medianprops,
-            tick_labels=["Conjunto de Datos"],  # Parámetro actualizado
+            tick_labels=nombres,
         )
 
+        # Paleta de colores para diferenciar las cajas
+        colores = ["#90CAF9", "#A5D6A7", "#FFE082", "#FFAB91", "#CE93D8", "#80CBC4"]
+        for i, box in enumerate(bp["boxes"]):
+            box.set_facecolor(colores[i % len(colores)])
+            box.set_edgecolor("#333333")
+            box.set_linewidth(1.2)
+
         ax.set_title(
-            f"Boxplot (Q1={q1:.2f} | Mediana={q2:.2f} | Q3={q3:.2f} | RIQ={riq:.2f})",
-            fontsize=11,
+            f"Comparativa de Diagramas de Cajas y Bigotes ({len(nombres)} muestras)",
+            fontsize=12,
             fontweight="bold",
         )
         ax.set_ylabel("Valores", fontsize=10)
@@ -380,6 +404,12 @@ class DataProcessorApp(ctk.CTk):
     # =========================================================================
     # MÉTODOS DE CARGA Y LIMPIEZA DE DATOS
     # =========================================================================
+
+    def _obtener_nombre_grupo_valido(self):
+        nombre = self.ent_nombre_grupo.get().strip()
+        if not nombre:
+            nombre = f"Muestra {len(self.grupos) + 1}"
+        return nombre
 
     def cargar_csv(self):
         ruta = filedialog.askopenfilename(
@@ -403,11 +433,11 @@ class DataProcessorApp(ctk.CTk):
                     cols_num.append(c)
                 except Exception:
                     continue
-            self.after(0, self._actualizar_combo, cols_num)
+            self.after(0, self._actualizar_combo_csv, cols_num)
         except Exception as e:
             messagebox.showerror("Error", f"Error al leer CSV:\n{str(e)}")
 
-    def _actualizar_combo(self, columnas):
+    def _actualizar_combo_csv(self, columnas):
         if columnas:
             self.combo_columnas.configure(state="normal", values=columnas)
             self.combo_columnas.set(columnas[0])
@@ -421,11 +451,15 @@ class DataProcessorApp(ctk.CTk):
         if not col or col == "N/A":
             return
 
+        nombre_grupo = self._obtener_nombre_grupo_valido()
+
         def _cargar():
             s = pd.read_csv(self.ruta_csv_actual, usecols=[col])[col]
             s = pd.to_numeric(s, errors="coerce").dropna()
-            self.datos = np.concatenate([self.datos, s.to_numpy(dtype=np.float64)])
-            self.after(0, self._actualizar_resumen)
+            nuevos_datos = s.to_numpy(dtype=np.float64)
+
+            self.grupos[nombre_grupo] = nuevos_datos
+            self.after(0, self._actualizar_interfaz_tras_carga)
 
         threading.Thread(target=_cargar, daemon=True).start()
 
@@ -437,45 +471,49 @@ class DataProcessorApp(ctk.CTk):
             limpio = texto.replace(",", " ").replace("\n", " ")
             vals = [float(x) for x in limpio.split() if x.strip() != ""]
             if vals:
-                self.datos = np.concatenate(
-                    [self.datos, np.array(vals, dtype=np.float64)]
-                )
+                nombre_grupo = self._obtener_nombre_grupo_valido()
+                self.grupos[nombre_grupo] = np.array(vals, dtype=np.float64)
                 self.txt_manual.delete("1.0", "end")
-                self._actualizar_resumen()
+                self._actualizar_interfaz_tras_carga()
         except ValueError:
             messagebox.showerror("Error", "Ingresa únicamente números válidos.")
 
-    def _actualizar_resumen(self):
-        n = len(self.datos)
-        if n > 0:
-            q1 = np.percentile(self.datos, 25)
-            q2 = np.percentile(self.datos, 50)
-            q3 = np.percentile(self.datos, 75)
-            riq = q3 - q1
-            self.lbl_resumen.configure(
-                text=f"Registros: {n:,} | Mín: {np.min(self.datos):.2f} | Q1: {q1:.2f} | Mediana: {q2:.2f} | Q3: {q3:.2f} | RIQ: {riq:.2f} | Máx: {np.max(self.datos):.2f}"
-            )
-            self.lbl_estado.configure(text=f"Estado: {n:,} datos cargados.")
-        else:
-            self.lbl_resumen.configure(text="Total de registros: 0")
-            self.lbl_estado.configure(text="Estado: Sin datos.")
+    def _actualizar_interfaz_tras_carga(self):
+        nombres = list(self.grupos.keys())
+        self.combo_grupo_hist.configure(state="normal", values=nombres)
+        self.combo_grupo_hist.set(nombres[-1])  # Seleccionar el último agregado
+        self.ent_nombre_grupo.delete(0, "end")  # Limpiar campo de texto del nombre
+
+        total_datos = sum(len(v) for v in self.grupos.values())
+        self.lbl_resumen.configure(
+            text=f"Muestras cargadas: {len(self.grupos)} | Datos totales: {total_datos:,}"
+        )
+        self.lbl_estado.configure(
+            text=f"Estado: Muestra '{nombres[-1]}' cargada con éxito."
+        )
 
     def limpiar_datos(self):
-        self.datos = np.array([], dtype=np.float64)
+        self.grupos.clear()
+        self.combo_grupo_hist.configure(state="disabled", values=["N/A"])
+        self.combo_grupo_hist.set("N/A")
+        self.combo_columnas.configure(state="disabled", values=["N/A"])
+        self.combo_columnas.set("N/A")
+        self.btn_confirmar_columna.configure(state="disabled", fg_color="gray")
+
         if self.canvas_histograma:
             self.canvas_histograma.get_tk_widget().destroy()
             self.canvas_histograma = None
         if self.canvas_boxplot:
             self.canvas_boxplot.get_tk_widget().destroy()
             self.canvas_boxplot = None
-        self._actualizar_resumen()
+
+        self.lbl_resumen.configure(text="Conjuntos cargados: 0")
+        self.lbl_estado.configure(text="Estado: Sin datos.")
+
+        
 
 
 if __name__ == "__main__":
     app = DataProcessorApp()
     app.mainloop()
-
-
-if __name__ == "__main__":
-    app = DataProcessorApp()
-    app.mainloop()
+    
