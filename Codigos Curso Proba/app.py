@@ -21,22 +21,20 @@ class DataProcessorApp(ctk.CTk):
         self.geometry("1150x750")
         self.minsize(950, 650)
 
-        # Almacenamiento de múltiples conjuntos de datos { "Nombre": np.array([...]) }
+        # Diccionario para almacenar muestras { "Nombre": np.array([...]) }
         self.grupos = {}
-        
+
         # Canvas para gráficos
         self.canvas_histograma = None
         self.canvas_boxplot = None
 
         self._crear_interfaz()
 
-        # Manejo limpio al cerrar la ventana
+        # Vinculación para evitar bloqueos al cerrar la ventana
         self.protocol("WM_DELETE_WINDOW", self.destroy)
 
     def destroy(self):
-        # Cerrar las figuras de matplotlib activas
         plt.close("all")
-        # Llamar al destroy original de CustomTkinter/Tkinter
         super().destroy()
 
     def _crear_interfaz(self):
@@ -48,7 +46,9 @@ class DataProcessorApp(ctk.CTk):
         # PANEL IZQUIERDO: CARGA DE DATOS Y CONTROLES
         # =========================================================================
         self.panel_control = ctk.CTkScrollableFrame(self, corner_radius=10)
-        self.panel_control.grid(row=0, column=0, padx=15, pady=15, sticky="nsew")
+        self.panel_control.grid(
+            row=0, column=0, padx=15, pady=15, sticky="nsew"
+        )
 
         # --- CARGA DE DATOS ---
         ctk.CTkLabel(
@@ -57,7 +57,7 @@ class DataProcessorApp(ctk.CTk):
             font=ctk.CTkFont(size=16, weight="bold"),
         ).pack(anchor="w", padx=10, pady=(10, 5))
 
-        # Nombre del Conjunto
+        # Campo para asignar nombre inicial al conjunto
         ctk.CTkLabel(
             self.panel_control,
             text="Nombre de la Muestra / Serie:",
@@ -69,7 +69,7 @@ class DataProcessorApp(ctk.CTk):
         )
         self.ent_nombre_grupo.pack(fill="x", padx=10, pady=(0, 10))
 
-        # Opción CSV
+        # Carga por CSV
         self.btn_cargar_csv = ctk.CTkButton(
             self.panel_control,
             text="📁 Seleccionar CSV",
@@ -108,14 +108,64 @@ class DataProcessorApp(ctk.CTk):
         )
         self.btn_cargar_manual.pack(fill="x", padx=10, pady=5)
 
-        self.btn_limpiar = ctk.CTkButton(
-            self.panel_control,
-            text="🗑️ Limpiar Todos los Datos",
-            fg_color="#D32F2F",
-            hover_color="#9A0007",
-            command=self.limpiar_datos,
+        # Separador
+        ctk.CTkFrame(self.panel_control, height=2, fg_color="gray40").pack(
+            fill="x", padx=10, pady=10
         )
-        self.btn_limpiar.pack(fill="x", padx=10, pady=(5, 15))
+
+        # --- GESTIÓN DE MUESTRAS (RENOMBRAR Y ELIMINAR INDIVIDUAL) ---
+        ctk.CTkLabel(
+            self.panel_control,
+            text="2. Gestión de Muestras",
+            font=ctk.CTkFont(size=16, weight="bold"),
+        ).pack(anchor="w", padx=10, pady=(5, 5))
+
+        # Renombrar
+        ctk.CTkLabel(
+            self.panel_control,
+            text="Renombrar Muestra:",
+            font=ctk.CTkFont(size=11, weight="bold"),
+        ).pack(anchor="w", padx=10, pady=(2, 2))
+
+        self.combo_renombrar = ctk.CTkComboBox(
+            self.panel_control, values=["N/A"], state="disabled"
+        )
+        self.combo_renombrar.pack(fill="x", padx=10, pady=2)
+
+        self.ent_nuevo_nombre = ctk.CTkEntry(
+            self.panel_control, placeholder_text="Nuevo nombre..."
+        )
+        self.ent_nuevo_nombre.pack(fill="x", padx=10, pady=2)
+
+        self.btn_renombrar = ctk.CTkButton(
+            self.panel_control,
+            text="✏️ Cambiar Nombre",
+            fg_color="#E65100",
+            hover_color="#B23C00",
+            command=self.renombrar_muestra,
+        )
+        self.btn_renombrar.pack(fill="x", padx=10, pady=(2, 10))
+
+        # Eliminar Individual
+        ctk.CTkLabel(
+            self.panel_control,
+            text="Eliminar Muestra Individual:",
+            font=ctk.CTkFont(size=11, weight="bold"),
+        ).pack(anchor="w", padx=10, pady=(5, 2))
+
+        self.combo_eliminar = ctk.CTkComboBox(
+            self.panel_control, values=["N/A"], state="disabled"
+        )
+        self.combo_eliminar.pack(fill="x", padx=10, pady=2)
+
+        self.btn_eliminar_individual = ctk.CTkButton(
+            self.panel_control,
+            text="🗑️ Eliminar Seleccionada",
+            fg_color="#C62828",
+            hover_color="#8E0000",
+            command=self.eliminar_muestra_individual,
+        )
+        self.btn_eliminar_individual.pack(fill="x", padx=10, pady=(2, 5))
 
         # Separador
         ctk.CTkFrame(self.panel_control, height=2, fg_color="gray40").pack(
@@ -125,7 +175,7 @@ class DataProcessorApp(ctk.CTk):
         # --- OPCIONES DEL HISTOGRAMA ---
         ctk.CTkLabel(
             self.panel_control,
-            text="2. Configuración Histograma",
+            text="3. Configuración Histograma",
             font=ctk.CTkFont(size=16, weight="bold"),
         ).pack(anchor="w", padx=10, pady=(5, 5))
 
@@ -161,7 +211,7 @@ class DataProcessorApp(ctk.CTk):
         # --- BOTONES DE GENERACIÓN DE GRÁFICOS ---
         ctk.CTkLabel(
             self.panel_control,
-            text="3. Visualización",
+            text="4. Visualización",
             font=ctk.CTkFont(size=16, weight="bold"),
         ).pack(anchor="w", padx=10, pady=(15, 5))
 
@@ -181,10 +231,19 @@ class DataProcessorApp(ctk.CTk):
             hover_color="#01579B",
             command=self.generar_boxplot,
         )
-        self.btn_generar_boxplot.pack(fill="x", padx=10, pady=(5, 15))
+        self.btn_generar_boxplot.pack(fill="x", padx=10, pady=5)
+
+        self.btn_limpiar = ctk.CTkButton(
+            self.panel_control,
+            text="🔥 Limpiar TODOS los Datos",
+            fg_color="#333333",
+            hover_color="#111111",
+            command=self.limpiar_datos,
+        )
+        self.btn_limpiar.pack(fill="x", padx=10, pady=(10, 15))
 
         # =========================================================================
-        # PANEL DERECHO: PESTAÑAS DE VISUALIZACIÓN Y RESUMEN
+        # PANEL DERECHO: PESTAÑAS DE VISUALIZACIÓN
         # =========================================================================
         self.panel_main = ctk.CTkFrame(self, corner_radius=10)
         self.panel_main.grid(row=0, column=1, padx=15, pady=15, sticky="nsew")
@@ -204,14 +263,14 @@ class DataProcessorApp(ctk.CTk):
         )
         self.lbl_resumen.pack(anchor="w", padx=20, pady=(0, 5))
 
-        # Pestañas para separar Histograma y Boxplot
+        # Pestañas
         self.tabview = ctk.CTkTabview(self.panel_main)
         self.tabview.pack(fill="both", expand=True, padx=15, pady=(5, 15))
 
         self.tab_hist = self.tabview.add("Histograma")
         self.tab_box = self.tabview.add("Diagrama de Cajas y Bigotes")
 
-        # Placeholders iniciales
+        # Placeholders
         self.lbl_ph_hist = ctk.CTkLabel(
             self.tab_hist,
             text="Carga datos y presiona 'Generar Histograma'",
@@ -227,7 +286,69 @@ class DataProcessorApp(ctk.CTk):
         self.lbl_ph_box.place(relx=0.5, rely=0.5, anchor="center")
 
     # =========================================================================
-    # LÓGICA DEL HISTOGRAMA
+    # LÓGICA DE GESTIÓN DE MUESTRAS (RENOMBRAR / ELIMINAR)
+    # =========================================================================
+
+    def renombrar_muestra(self):
+        nombre_actual = self.combo_renombrar.get()
+        nuevo_nombre = self.ent_nuevo_nombre.get().strip()
+
+        if not self.grupos or nombre_actual not in self.grupos:
+            messagebox.showwarning(
+                "Atención", "Selecciona una muestra válida para renombrar."
+            )
+            return
+
+        if not nuevo_nombre:
+            messagebox.showwarning(
+                "Atención", "Ingresa un nuevo nombre válido."
+            )
+            return
+
+        if nuevo_nombre in self.grupos and nuevo_nombre != nombre_actual:
+            messagebox.showerror(
+                "Error", "Ya existe una muestra con ese nombre."
+            )
+            return
+
+        # Reestructurar diccionario manteniendo orden sin renderizar gráficos
+        nuevos_grupos = {}
+        for k, v in self.grupos.items():
+            if k == nombre_actual:
+                nuevos_grupos[nuevo_nombre] = v
+            else:
+                nuevos_grupos[k] = v
+
+        self.grupos = nuevos_grupos
+        self.ent_nuevo_nombre.delete(0, "end")
+        self._actualizar_combos()
+        self._actualizar_resumen()
+
+        self.lbl_estado.configure(
+            text=f"Estado: Muestra renombrada a '{nuevo_nombre}'. Presiona 'Generar Boxplot' para actualizar."
+        )
+
+    def eliminar_muestra_individual(self):
+        nombre_eliminar = self.combo_eliminar.get()
+
+        if not self.grupos or nombre_eliminar not in self.grupos:
+            messagebox.showwarning(
+                "Atención", "Selecciona una muestra válida para eliminar."
+            )
+            return
+
+        # Eliminar del diccionario
+        del self.grupos[nombre_eliminar]
+
+        self._actualizar_combos()
+        self._actualizar_resumen()
+
+        self.lbl_estado.configure(
+            text=f"Estado: Muestra '{nombre_eliminar}' eliminada. Presiona 'Generar Boxplot' para actualizar."
+        )
+
+    # =========================================================================
+    # LÓGICA DEL HISTOGRAMA Y BOXPLOT
     # =========================================================================
 
     def generar_histograma(self):
@@ -331,10 +452,6 @@ class DataProcessorApp(ctk.CTk):
         self.canvas_histograma.draw()
         self.canvas_histograma.get_tk_widget().pack(fill="both", expand=True)
 
-    # =========================================================================
-    # LÓGICA DEL DIAGRAMA DE CAJAS Y BIGOTES (MÚLTIPLE)
-    # =========================================================================
-
     def generar_boxplot(self):
         if not self.grupos:
             messagebox.showwarning(
@@ -380,8 +497,14 @@ class DataProcessorApp(ctk.CTk):
             tick_labels=nombres,
         )
 
-        # Paleta de colores para diferenciar las cajas
-        colores = ["#90CAF9", "#A5D6A7", "#FFE082", "#FFAB91", "#CE93D8", "#80CBC4"]
+        colores = [
+            "#90CAF9",
+            "#A5D6A7",
+            "#FFE082",
+            "#FFAB91",
+            "#CE93D8",
+            "#80CBC4",
+        ]
         for i, box in enumerate(bp["boxes"]):
             box.set_facecolor(colores[i % len(colores)])
             box.set_edgecolor("#333333")
@@ -402,7 +525,7 @@ class DataProcessorApp(ctk.CTk):
         self.canvas_boxplot.get_tk_widget().pack(fill="both", expand=True)
 
     # =========================================================================
-    # MÉTODOS DE CARGA Y LIMPIEZA DE DATOS
+    # MÉTODOS DE CARGA Y AUXILIARES
     # =========================================================================
 
     def _obtener_nombre_grupo_valido(self):
@@ -478,24 +601,48 @@ class DataProcessorApp(ctk.CTk):
         except ValueError:
             messagebox.showerror("Error", "Ingresa únicamente números válidos.")
 
-    def _actualizar_interfaz_tras_carga(self):
+    def _actualizar_combos(self):
         nombres = list(self.grupos.keys())
-        self.combo_grupo_hist.configure(state="normal", values=nombres)
-        self.combo_grupo_hist.set(nombres[-1])  # Seleccionar el último agregado
-        self.ent_nombre_grupo.delete(0, "end")  # Limpiar campo de texto del nombre
+        if nombres:
+            self.combo_grupo_hist.configure(state="normal", values=nombres)
+            self.combo_renombrar.configure(state="normal", values=nombres)
+            self.combo_eliminar.configure(state="normal", values=nombres)
 
+            if self.combo_grupo_hist.get() not in nombres:
+                self.combo_grupo_hist.set(nombres[-1])
+            if self.combo_renombrar.get() not in nombres:
+                self.combo_renombrar.set(nombres[-1])
+            if self.combo_eliminar.get() not in nombres:
+                self.combo_eliminar.set(nombres[-1])
+        else:
+            self.combo_grupo_hist.configure(state="disabled", values=["N/A"])
+            self.combo_grupo_hist.set("N/A")
+            self.combo_renombrar.configure(state="disabled", values=["N/A"])
+            self.combo_renombrar.set("N/A")
+            self.combo_eliminar.configure(state="disabled", values=["N/A"])
+            self.combo_eliminar.set("N/A")
+
+    def _actualizar_resumen(self):
+        nombres = list(self.grupos.keys())
         total_datos = sum(len(v) for v in self.grupos.values())
         self.lbl_resumen.configure(
             text=f"Muestras cargadas: {len(self.grupos)} | Datos totales: {total_datos:,}"
         )
+
+    def _actualizar_interfaz_tras_carga(self):
+        self._actualizar_combos()
+        self._actualizar_resumen()
+        self.ent_nombre_grupo.delete(0, "end")
+
+        nombres = list(self.grupos.keys())
         self.lbl_estado.configure(
             text=f"Estado: Muestra '{nombres[-1]}' cargada con éxito."
         )
 
     def limpiar_datos(self):
         self.grupos.clear()
-        self.combo_grupo_hist.configure(state="disabled", values=["N/A"])
-        self.combo_grupo_hist.set("N/A")
+        self._actualizar_combos()
+        self._actualizar_resumen()
         self.combo_columnas.configure(state="disabled", values=["N/A"])
         self.combo_columnas.set("N/A")
         self.btn_confirmar_columna.configure(state="disabled", fg_color="gray")
@@ -507,8 +654,12 @@ class DataProcessorApp(ctk.CTk):
             self.canvas_boxplot.get_tk_widget().destroy()
             self.canvas_boxplot = None
 
-        self.lbl_resumen.configure(text="Conjuntos cargados: 0")
-        self.lbl_estado.configure(text="Estado: Sin datos.")
+        self.lbl_estado.configure(text="Estado: Todos los datos han sido limpiados.")
+
+
+if __name__ == "__main__":
+    app = DataProcessorApp()
+    app.mainloop()
 
         
 
