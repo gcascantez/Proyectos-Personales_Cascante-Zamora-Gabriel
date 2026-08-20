@@ -17,13 +17,16 @@ class DataProcessorApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("Procesador de Datos - Histograma Personalizado")
-        self.geometry("1100x700")
-        self.minsize(950, 600)
+        self.title("Procesador de Datos - Histograma & Boxplot")
+        self.geometry("1150x750")
+        self.minsize(950, 650)
 
         # Almacenamiento de datos
         self.datos = np.array([], dtype=np.float64)
+        
+        # Canvas para gráficos
         self.canvas_histograma = None
+        self.canvas_boxplot = None
 
         self._crear_interfaz()
 
@@ -33,12 +36,10 @@ class DataProcessorApp(ctk.CTk):
         self.grid_rowconfigure(0, weight=1)
 
         # =========================================================================
-        # PANEL IZQUIERDO: CARGA DE DATOS Y CONTROLES DEL HISTOGRAMA
+        # PANEL IZQUIERDO: CARGA DE DATOS Y CONTROLES
         # =========================================================================
         self.panel_control = ctk.CTkScrollableFrame(self, corner_radius=10)
-        self.panel_control.grid(
-            row=0, column=0, padx=15, pady=15, sticky="nsew"
-        )
+        self.panel_control.grid(row=0, column=0, padx=15, pady=15, sticky="nsew")
 
         # --- CARGA DE DATOS ---
         ctk.CTkLabel(
@@ -102,7 +103,7 @@ class DataProcessorApp(ctk.CTk):
         # --- OPCIONES DEL HISTOGRAMA ---
         ctk.CTkLabel(
             self.panel_control,
-            text="2. Opción de Etiquetas (Eje X)",
+            text="2. Configuración Histograma",
             font=ctk.CTkFont(size=16, weight="bold"),
         ).pack(anchor="w", padx=10, pady=(5, 5))
 
@@ -124,6 +125,13 @@ class DataProcessorApp(ctk.CTk):
         )
         self.radio_rango.pack(anchor="w", padx=15, pady=5)
 
+        # --- BOTONES DE GENERACIÓN DE GRÁFICOS ---
+        ctk.CTkLabel(
+            self.panel_control,
+            text="3. Visualización",
+            font=ctk.CTkFont(size=16, weight="bold"),
+        ).pack(anchor="w", padx=10, pady=(15, 5))
+
         self.btn_generar_histograma = ctk.CTkButton(
             self.panel_control,
             text="📊 Generar Histograma",
@@ -131,10 +139,19 @@ class DataProcessorApp(ctk.CTk):
             hover_color="#1B5E20",
             command=self.generar_histograma,
         )
-        self.btn_generar_histograma.pack(fill="x", padx=10, pady=(15, 10))
+        self.btn_generar_histograma.pack(fill="x", padx=10, pady=5)
+
+        self.btn_generar_boxplot = ctk.CTkButton(
+            self.panel_control,
+            text="📦 Generar Boxplot",
+            fg_color="#0277BD",
+            hover_color="#01579B",
+            command=self.generar_boxplot,
+        )
+        self.btn_generar_boxplot.pack(fill="x", padx=10, pady=(5, 15))
 
         # =========================================================================
-        # PANEL DERECHO: ÁREA DE GRÁFICOS Y ESTADÍSTICAS
+        # PANEL DERECHO: PESTAÑAS DE VISUALIZACIÓN Y RESUMEN
         # =========================================================================
         self.panel_main = ctk.CTkFrame(self, corner_radius=10)
         self.panel_main.grid(row=0, column=1, padx=15, pady=15, sticky="nsew")
@@ -154,93 +171,78 @@ class DataProcessorApp(ctk.CTk):
         )
         self.lbl_resumen.pack(anchor="w", padx=20, pady=(0, 5))
 
-        # Marco para incrustar el gráfico de Matplotlib
-        self.frame_grafico = ctk.CTkFrame(self.panel_main)
-        self.frame_grafico.pack(
-            fill="both", expand=True, padx=15, pady=(5, 15)
-        )
+        # Pestañas para separar Histograma y Boxplot
+        self.tabview = ctk.CTkTabview(self.panel_main)
+        self.tabview.pack(fill="both", expand=True, padx=15, pady=(5, 15))
 
-        self.lbl_placeholder = ctk.CTkLabel(
-            self.frame_grafico,
+        self.tab_hist = self.tabview.add("Histograma")
+        self.tab_box = self.tabview.add("Diagrama de Cajas y Bigotes")
+
+        # Placeholders iniciales
+        self.lbl_ph_hist = ctk.CTkLabel(
+            self.tab_hist,
             text="Carga datos y presiona 'Generar Histograma'",
             font=ctk.CTkFont(size=15, slant="italic"),
         )
-        self.lbl_placeholder.place(relx=0.5, rely=0.5, anchor="center")
+        self.lbl_ph_hist.place(relx=0.5, rely=0.5, anchor="center")
+
+        self.lbl_ph_box = ctk.CTkLabel(
+            self.tab_box,
+            text="Carga datos y presiona 'Generar Boxplot'",
+            font=ctk.CTkFont(size=15, slant="italic"),
+        )
+        self.lbl_ph_box.place(relx=0.5, rely=0.5, anchor="center")
 
     # =========================================================================
-    # LÓGICA DE HISTOGRAMA CON LAS TRES REGLAS
+    # LÓGICA DEL HISTOGRAMA
     # =========================================================================
 
     def generar_histograma(self):
         n = len(self.datos)
         if n == 0:
-            messagebox.showwarning(
-                "Atención", "Primero debes cargar datos numéricos."
-            )
+            messagebox.showwarning("Atención", "Primero debes cargar datos numéricos.")
             return
 
-        # --- Regla 1: Cantidad de clases = ceil(sqrt(n)) ---
+        self.tabview.set("Histograma")
+
         num_clases = math.ceil(math.sqrt(n))
+        v_min, v_max = np.min(self.datos), np.max(self.datos)
 
-        v_min = np.min(self.datos)
-        v_max = np.max(self.datos)
-
-        # Prevenir error si todos los datos son idénticos
         if v_min == v_max:
             v_min -= 0.5
             v_max += 0.5
 
-        # --- Regla 2: Desfase para que NINGÚN límite toque valores de los datos ---
         epsilon = 1e-6
         v_min_adj = v_min - epsilon
         v_max_adj = v_max + epsilon
-
-        # Ancho de clase basado en el rango ajustado
         ancho_clase = (v_max_adj - v_min_adj) / num_clases
 
-        # Construcción de los bordes de los intervalos
         bins = [v_min_adj + i * ancho_clase for i in range(num_clases + 1)]
-
-        # Conteo de frecuencias en cada clase
         frecuencias, _ = np.histogram(self.datos, bins=bins)
 
-        # --- Regla 3: Determinación de Identificadores (Eje X) ---
         etiquetas_x = []
         modo_etiqueta = self.var_etiqueta.get()
 
         for i in range(num_clases):
-            l_inf = bins[i]
-            l_sup = bins[i + 1]
-
+            l_inf, l_sup = bins[i], bins[i + 1]
             if modo_etiqueta == "marca":
-                # Marca de clase (Centro del intervalo)
                 centro = (l_sup + l_inf) / 2.0
                 etiquetas_x.append(f"{centro:.2f}")
             else:
-                # Formato Rango [Vmin, Vmax]
                 etiquetas_x.append(f"[{l_inf:.2f}, {l_sup:.2f}]")
 
-        # --- DIBUJAR EN MATPLOTLIB ---
-        self._renderizar_grafico(
-            frecuencias, etiquetas_x, num_clases, ancho_clase
-        )
+        self._renderizar_histograma(frecuencias, etiquetas_x, num_clases, ancho_clase)
 
-    def _renderizar_grafico(
-        self, frecuencias, etiquetas_x, num_clases, ancho_clase
-    ):
-        # Limpiar gráfico previo si existe
+    def _renderizar_histograma(self, frecuencias, etiquetas_x, num_clases, ancho_clase):
         if self.canvas_histograma:
             self.canvas_histograma.get_tk_widget().destroy()
 
-        if hasattr(self, "lbl_placeholder"):
-            self.lbl_placeholder.destroy()
+        if hasattr(self, "lbl_ph_hist") and self.lbl_ph_hist.winfo_exists():
+            self.lbl_ph_hist.destroy()
 
-        # Crear figura de Matplotlib
         fig, ax = plt.subplots(figsize=(7, 4.5), dpi=100)
-
         posiciones_x = np.arange(len(frecuencias))
 
-        # Gráfico de barras representando las clases
         bars = ax.bar(
             posiciones_x,
             frecuencias,
@@ -250,7 +252,6 @@ class DataProcessorApp(ctk.CTk):
             align="center",
         )
 
-        # Configuración de ejes y etiquetas
         ax.set_xticks(posiciones_x)
         ax.set_xticklabels(
             etiquetas_x,
@@ -264,15 +265,12 @@ class DataProcessorApp(ctk.CTk):
             fontweight="bold",
         )
         ax.set_xlabel(
-            "Marcas de Clase"
-            if self.var_etiqueta.get() == "marca"
-            else "Intervalos [Vmin, Vmax]",
+            "Marcas de Clase" if self.var_etiqueta.get() == "marca" else "Intervalos [Vmin, Vmax]",
             fontsize=10,
         )
         ax.set_ylabel("Frecuencia Absoluta", fontsize=10)
         ax.grid(axis="y", linestyle="--", alpha=0.7)
 
-        # Mostrar valores numéricos sobre cada barra
         for bar in bars:
             yval = bar.get_height()
             if yval > 0:
@@ -286,11 +284,98 @@ class DataProcessorApp(ctk.CTk):
                 )
 
         fig.tight_layout()
-
-        # Incrustar gráfico en la ventana de Tkinter
-        self.canvas_histograma = FigureCanvasTkAgg(fig, master=self.frame_grafico)
+        self.canvas_histograma = FigureCanvasTkAgg(fig, master=self.tab_hist)
         self.canvas_histograma.draw()
         self.canvas_histograma.get_tk_widget().pack(fill="both", expand=True)
+
+    # =========================================================================
+    # LÓGICA DEL DIAGRAMA DE CAJAS Y BIGOTES (BOXPLOT)
+    # =========================================================================
+
+    def generar_boxplot(self):
+        n = len(self.datos)
+        if n == 0:
+            messagebox.showwarning("Atención", "Primero debes cargar datos numéricos.")
+            return
+
+        self.tabview.set("Diagrama de Cajas y Bigotes")
+
+        # 1. Cálculo explícito de Cuartiles y RIQ
+        q1 = np.percentile(self.datos, 25)
+        q2 = np.percentile(self.datos, 50)  # Mediana
+        q3 = np.percentile(self.datos, 75)
+        riq = q3 - q1
+
+        # 2. Límites teóricos para bigotes (1.5 * RIQ)
+        lim_inf_teorico = q1 - 1.5 * riq
+        lim_sup_teorico = q3 + 1.5 * riq
+
+        # 3. Recorte de bigotes a los datos reales dentro del rango
+        datos_dentro = self.datos[
+            (self.datos >= lim_inf_teorico) & (self.datos <= lim_sup_teorico)
+        ]
+        
+        bigote_inf = np.min(datos_dentro) if len(datos_dentro) > 0 else q1
+        bigote_sup = np.max(datos_dentro) if len(datos_dentro) > 0 else q3
+
+        # Outliers (puntos fuera de los bigotes)
+        outliers = self.datos[
+            (self.datos < lim_inf_teorico) | (self.datos > lim_sup_teorico)
+        ]
+
+        self._renderizar_boxplot(q1, q2, q3, riq, bigote_inf, bigote_sup, outliers)
+
+    def _renderizar_boxplot(
+        self, q1, q2, q3, riq, bigote_inf, bigote_sup, outliers
+    ):
+        if self.canvas_boxplot:
+            self.canvas_boxplot.get_tk_widget().destroy()
+
+        if hasattr(self, "lbl_ph_box") and self.lbl_ph_box.winfo_exists():
+            self.lbl_ph_box.destroy()
+
+        fig, ax = plt.subplots(figsize=(7, 4.5), dpi=100)
+
+        # Propiedades del boxplot
+        flierprops = dict(
+            marker="o",
+            markerfacecolor="none",
+            markeredgecolor="#D32F2F",
+            markersize=6,
+            linestyle="none",
+        )
+        boxprops = dict(facecolor="#90CAF9", color="#0D47A1", linewidth=1.5)
+        whiskerprops = dict(color="#0D47A1", linewidth=1.5)
+        capprops = dict(color="#0D47A1", linewidth=1.5)
+        medianprops = dict(color="#B71C1C", linewidth=2.0)
+
+        # Creación del Boxplot con matplotlib (usando tick_labels)
+        ax.boxplot(
+            self.datos,
+            orientation="vertical",
+            patch_artist=True,
+            whis=1.5,
+            flierprops=flierprops,
+            boxprops=boxprops,
+            whiskerprops=whiskerprops,
+            capprops=capprops,
+            medianprops=medianprops,
+            tick_labels=["Conjunto de Datos"],  # Parámetro actualizado
+        )
+
+        ax.set_title(
+            f"Boxplot (Q1={q1:.2f} | Mediana={q2:.2f} | Q3={q3:.2f} | RIQ={riq:.2f})",
+            fontsize=11,
+            fontweight="bold",
+        )
+        ax.set_ylabel("Valores", fontsize=10)
+        ax.grid(axis="y", linestyle="--", alpha=0.7)
+
+        fig.tight_layout()
+
+        self.canvas_boxplot = FigureCanvasTkAgg(fig, master=self.tab_box)
+        self.canvas_boxplot.draw()
+        self.canvas_boxplot.get_tk_widget().pack(fill="both", expand=True)
 
     # =========================================================================
     # MÉTODOS DE CARGA Y LIMPIEZA DE DATOS
@@ -314,9 +399,7 @@ class DataProcessorApp(ctk.CTk):
             cols_num = []
             for c in cols:
                 try:
-                    pd.to_numeric(
-                        pd.read_csv(ruta, usecols=[c], nrows=100)[c]
-                    )
+                    pd.to_numeric(pd.read_csv(ruta, usecols=[c], nrows=100)[c])
                     cols_num.append(c)
                 except Exception:
                     continue
@@ -360,15 +443,17 @@ class DataProcessorApp(ctk.CTk):
                 self.txt_manual.delete("1.0", "end")
                 self._actualizar_resumen()
         except ValueError:
-            messagebox.showerror(
-                "Error", "Ingresa únicamente números válidos."
-            )
+            messagebox.showerror("Error", "Ingresa únicamente números válidos.")
 
     def _actualizar_resumen(self):
         n = len(self.datos)
         if n > 0:
+            q1 = np.percentile(self.datos, 25)
+            q2 = np.percentile(self.datos, 50)
+            q3 = np.percentile(self.datos, 75)
+            riq = q3 - q1
             self.lbl_resumen.configure(
-                text=f"Registros: {n:,} | Mín: {np.min(self.datos):.4f} | Máx: {np.max(self.datos):.4f}"
+                text=f"Registros: {n:,} | Mín: {np.min(self.datos):.2f} | Q1: {q1:.2f} | Mediana: {q2:.2f} | Q3: {q3:.2f} | RIQ: {riq:.2f} | Máx: {np.max(self.datos):.2f}"
             )
             self.lbl_estado.configure(text=f"Estado: {n:,} datos cargados.")
         else:
@@ -380,7 +465,15 @@ class DataProcessorApp(ctk.CTk):
         if self.canvas_histograma:
             self.canvas_histograma.get_tk_widget().destroy()
             self.canvas_histograma = None
+        if self.canvas_boxplot:
+            self.canvas_boxplot.get_tk_widget().destroy()
+            self.canvas_boxplot = None
         self._actualizar_resumen()
+
+
+if __name__ == "__main__":
+    app = DataProcessorApp()
+    app.mainloop()
 
 
 if __name__ == "__main__":
