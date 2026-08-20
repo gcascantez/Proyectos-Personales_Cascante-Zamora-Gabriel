@@ -17,16 +17,16 @@ ctk.set_default_color_theme("blue")  # Esquema de color azul por defecto
 class DataProcessorApp(ctk.CTk):
     """
     Aplicación principal para la carga, gestión y visualización de datos numéricos
-    utilizando Histogramas y Diagramas de Cajas y Bigotes Múltiples.
+    utilizando Histogramas, Diagramas de Cajas y Tabla de Resumen Estadístico.
     """
 
     def __init__(self):
         super().__init__()
 
         # --- Configuración básica de la ventana principal ---
-        self.title("Procesador de Datos - Histograma & Boxplots Múltiples")
-        self.geometry("1150x750")
-        self.minsize(950, 650)
+        self.title("Procesador de Datos - Histograma, Boxplots & Estadísticas")
+        self.geometry("1200x800")
+        self.minsize(1000, 700)
 
         # --- Estructura de almacenamiento central ---
         # Diccionario para almacenar muestras activas: { "Nombre_Muestra": np.array([...]) }
@@ -39,7 +39,7 @@ class DataProcessorApp(ctk.CTk):
         # --- Construcción de la GUI ---
         self._crear_interfaz()
 
-        # Vinculación del evento de cierre para liberar recursos de Matplotlib/Threads
+        # Vinculación del evento de cierre para liberar recursos
         self.protocol("WM_DELETE_WINDOW", self.destroy)
 
     def destroy(self):
@@ -49,7 +49,7 @@ class DataProcessorApp(ctk.CTk):
 
     def _crear_interfaz(self):
         """Diseña la distribución de paneles y controles de la aplicación."""
-        # Grid principal: Columna 0 (Controles), Columna 1 (Gráficos)
+        # Grid principal: Columna 0 (Controles), Columna 1 (Gráficos y Estadísticas)
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=3)
         self.grid_rowconfigure(0, weight=1)
@@ -125,7 +125,7 @@ class DataProcessorApp(ctk.CTk):
             fill="x", padx=10, pady=10
         )
 
-        # --- SECCIÓN 2: GESTIÓN DE MUESTRAS (RENOMBRAR / ELIMINAR) ---
+        # --- SECCIÓN 2: GESTIÓN DE MUESTRAS ---
         ctk.CTkLabel(
             self.panel_control,
             text="2. Gestión de Muestras",
@@ -256,7 +256,7 @@ class DataProcessorApp(ctk.CTk):
         self.btn_limpiar.pack(fill="x", padx=10, pady=(10, 15))
 
         # =========================================================================
-        # PANEL DERECHO: ÁREA PRINCIPAL DE GRÁFICOS Y ESTADÍSTICAS
+        # PANEL DERECHO: PESTAÑAS DE VISUALIZACIÓN Y TABLA ESTADÍSTICA
         # =========================================================================
         self.panel_main = ctk.CTkFrame(self, corner_radius=10)
         self.panel_main.grid(row=0, column=1, padx=15, pady=15, sticky="nsew")
@@ -276,14 +276,14 @@ class DataProcessorApp(ctk.CTk):
         )
         self.lbl_resumen.pack(anchor="w", padx=20, pady=(0, 5))
 
-        # Pestañas para organizar la visualización
+        # Pestañas para organizar los gráficos
         self.tabview = ctk.CTkTabview(self.panel_main)
-        self.tabview.pack(fill="both", expand=True, padx=15, pady=(5, 15))
+        self.tabview.pack(fill="both", expand=True, padx=15, pady=(5, 5))
 
         self.tab_hist = self.tabview.add("Histograma")
         self.tab_box = self.tabview.add("Diagrama de Cajas y Bigotes")
 
-        # Placeholders iniciales
+        # Placeholders de gráficos
         self.lbl_ph_hist = ctk.CTkLabel(
             self.tab_hist,
             text="Carga datos y presiona 'Generar Histograma'",
@@ -298,12 +298,118 @@ class DataProcessorApp(ctk.CTk):
         )
         self.lbl_ph_box.place(relx=0.5, rely=0.5, anchor="center")
 
+        # --- ÁREA INFERIOR: TABLA DE RESUMEN ESTADÍSTICO EXTERNA ---
+        self.frame_tabla_contenedor = ctk.CTkFrame(
+            self.panel_main, height=180, corner_radius=8
+        )
+        self.frame_tabla_contenedor.pack(
+            fill="x", padx=15, pady=(5, 15)
+        )
+
+        ctk.CTkLabel(
+            self.frame_tabla_contenedor,
+            text="📈 Resumen Estadístico de las Muestras",
+            font=ctk.CTkFont(size=13, weight="bold"),
+        ).pack(anchor="w", padx=10, pady=(5, 2))
+
+        # Frame interno con scroll para desplegar la tabla
+        self.frame_tabla = ctk.CTkScrollableFrame(
+            self.frame_tabla_contenedor, height=130
+        )
+        self.frame_tabla.pack(fill="both", expand=True, padx=5, pady=5)
+
+        self._mostrar_tabla_vacia()
+
     # =========================================================================
-    # LÓGICA DE GESTIÓN DE MUESTRAS (RENOMBRAR / ELIMINAR)
+    # TABLA DE RESUMEN ESTADÍSTICO EXTERNA
+    # =========================================================================
+
+    def _mostrar_tabla_vacia(self):
+        """Muestra encabezados iniciales en la tabla estadística."""
+        for widget in self.frame_tabla.winfo_children():
+            widget.destroy()
+
+        encabezados = [
+            "Muestra",
+            "Promedio",
+            "Mediana (Q2)",
+            "Desv. Estándar",
+            "Q1",
+            "Q3",
+            "Q4 (Máx)",
+        ]
+        for col_idx, text in enumerate(encabezados):
+            lbl = ctk.CTkLabel(
+                self.frame_tabla,
+                text=text,
+                font=ctk.CTkFont(size=11, weight="bold"),
+            )
+            lbl.grid(row=0, column=col_idx, padx=8, pady=4, sticky="ew")
+
+    def actualizar_tabla_estadisticas(self):
+        """Calcula y despliega las métricas fuera de los diagramas."""
+        for widget in self.frame_tabla.winfo_children():
+            widget.destroy()
+
+        encabezados = [
+            "Muestra",
+            "Promedio",
+            "Mediana (Q2)",
+            "Desv. Estándar",
+            "Q1",
+            "Q3",
+            "Q4 (Máx)",
+        ]
+        for col_idx, text in enumerate(encabezados):
+            lbl = ctk.CTkLabel(
+                self.frame_tabla,
+                text=text,
+                font=ctk.CTkFont(size=11, weight="bold"),
+                fg_color=("gray85", "gray25"),
+                corner_radius=4,
+            )
+            lbl.grid(row=0, column=col_idx, padx=4, pady=4, sticky="ew")
+
+        for row_idx, (nombre, arr) in enumerate(self.grupos.items(), start=1):
+            if len(arr) == 0:
+                continue
+
+            # Cálculos estadísticos clave
+            promedio = np.mean(arr)
+            mediana = np.median(arr)
+            desv_std = np.std(arr, ddof=1) if len(arr) > 1 else 0.0
+            q1 = np.percentile(arr, 25)
+            q3 = np.percentile(arr, 75)
+            q4 = np.max(arr)  # El cuarto cuartil corresponde al valor máximo
+
+            valores = [
+                nombre,
+                f"{promedio:.4f}",
+                f"{mediana:.4f}",
+                f"{desv_std:.4f}",
+                f"{q1:.4f}",
+                f"{q3:.4f}",
+                f"{q4:.4f}",
+            ]
+
+            for col_idx, val in enumerate(valores):
+                lbl = ctk.CTkLabel(
+                    self.frame_tabla,
+                    text=val,
+                    font=ctk.CTkFont(
+                        size=11, weight="bold" if col_idx == 0 else "normal"
+                    ),
+                )
+                lbl.grid(
+                    row=row_idx, column=col_idx, padx=4, pady=2, sticky="ew"
+                )
+
+    # =========================================================================
+    # LÓGICA DE GESTIÓN DE MUESTRAS
     # =========================================================================
 
     def renombrar_muestra(self):
-        """Cambia la clave del diccionario de datos sin redibujar el gráfico."""
+        """Cambia el nombre de la muestra sin redibujar el gráfico."""
         nombre_actual = self.combo_renombrar.get()
         nuevo_nombre = self.ent_nuevo_nombre.get().strip()
 
@@ -325,7 +431,6 @@ class DataProcessorApp(ctk.CTk):
             )
             return
 
-        # Reestructuración del diccionario preservando el orden secuencial
         nuevos_grupos = {}
         for k, v in self.grupos.items():
             if k == nombre_actual:
@@ -337,13 +442,14 @@ class DataProcessorApp(ctk.CTk):
         self.ent_nuevo_nombre.delete(0, "end")
         self._actualizar_combos()
         self._actualizar_resumen()
+        self.actualizar_tabla_estadisticas()
 
         self.lbl_estado.configure(
-            text=f"Estado: Muestra renombrada a '{nuevo_nombre}'. Presiona 'Generar Boxplot' para actualizar."
+            text=f"Estado: Muestra renombrada a '{nuevo_nombre}'. Presiona 'Generar Boxplot' para actualizar gráfico."
         )
 
     def eliminar_muestra_individual(self):
-        """Elimina únicamente la muestra seleccionada del diccionario."""
+        """Elimina únicamente la muestra seleccionada."""
         nombre_eliminar = self.combo_eliminar.get()
 
         if not self.grupos or nombre_eliminar not in self.grupos:
@@ -356,17 +462,18 @@ class DataProcessorApp(ctk.CTk):
 
         self._actualizar_combos()
         self._actualizar_resumen()
+        self.actualizar_tabla_estadisticas()
 
         self.lbl_estado.configure(
-            text=f"Estado: Muestra '{nombre_eliminar}' eliminada. Presiona 'Generar Boxplot' para actualizar."
+            text=f"Estado: Muestra '{nombre_eliminar}' eliminada. Presiona 'Generar Boxplot' para actualizar gráfico."
         )
 
     # =========================================================================
-    # LÓGICA DEL HISTOGRAMA (REGLAS MATEMÁTICAS)
+    # LÓGICA DEL HISTOGRAMA Y BOXPLOT
     # =========================================================================
 
     def generar_histograma(self):
-        """Prepara los datos y calcula las clases bajo las reglas definidas."""
+        """Genera el histograma de la muestra elegida y actualiza estadísticas."""
         nombre_grupo = self.combo_grupo_hist.get()
         if not nombre_grupo or nombre_grupo not in self.grupos:
             messagebox.showwarning(
@@ -378,7 +485,6 @@ class DataProcessorApp(ctk.CTk):
         datos = self.grupos[nombre_grupo]
         n = len(datos)
 
-        # REGLA 1: Cantidad de clases k = ceil(sqrt(n))
         num_clases = math.ceil(math.sqrt(n))
         v_min, v_max = np.min(datos), np.max(datos)
 
@@ -386,47 +492,41 @@ class DataProcessorApp(ctk.CTk):
             v_min -= 0.5
             v_max += 0.5
 
-        # REGLA 2: Desfase infinitesimal epsilon para no tocar valores exactos de los datos
         epsilon = 1e-6
         v_min_adj = v_min - epsilon
         v_max_adj = v_max + epsilon
-
-        # Ancho de clase W
         ancho_clase = (v_max_adj - v_min_adj) / num_clases
 
-        # Arreglo de bordes de intervalos (bins)
         bins = [v_min_adj + i * ancho_clase for i in range(num_clases + 1)]
         frecuencias, _ = np.histogram(datos, bins=bins)
 
-        # REGLA 3: Formateo de Etiquetas (Eje X)
         etiquetas_x = []
         modo_etiqueta = self.var_etiqueta.get()
 
         for i in range(num_clases):
             l_inf, l_sup = bins[i], bins[i + 1]
             if modo_etiqueta == "marca":
-                # Opción 1: Marca de clase (Centro del intervalo)
                 centro = (l_sup + l_inf) / 2.0
                 etiquetas_x.append(f"{centro:.2f}")
             else:
-                # Opción 2: Rango explícito de la clase [Vmin, Vmax]
                 etiquetas_x.append(f"[{l_inf:.2f}, {l_sup:.2f}]")
 
         self._renderizar_histograma(
             frecuencias, etiquetas_x, num_clases, ancho_clase, nombre_grupo
         )
+        self.actualizar_tabla_estadisticas()
 
     def _renderizar_histograma(
         self, frecuencias, etiquetas_x, num_clases, ancho_clase, titulo_muestra
     ):
-        """Incrusta la gráfica del histograma en la interfaz mediante Matplotlib."""
+        """Incrusta la figura del histograma en la pestaña correspondiente."""
         if self.canvas_histograma:
             self.canvas_histograma.get_tk_widget().destroy()
 
         if hasattr(self, "lbl_ph_hist") and self.lbl_ph_hist.winfo_exists():
             self.lbl_ph_hist.destroy()
 
-        fig, ax = plt.subplots(figsize=(7, 4.5), dpi=100)
+        fig, ax = plt.subplots(figsize=(7, 4.2), dpi=100)
         posiciones_x = np.arange(len(frecuencias))
 
         bars = ax.bar(
@@ -459,7 +559,6 @@ class DataProcessorApp(ctk.CTk):
         ax.set_ylabel("Frecuencia Absoluta", fontsize=10)
         ax.grid(axis="y", linestyle="--", alpha=0.7)
 
-        # Frecuencias sobre cada barra
         for bar in bars:
             yval = bar.get_height()
             if yval > 0:
@@ -477,12 +576,8 @@ class DataProcessorApp(ctk.CTk):
         self.canvas_histograma.draw()
         self.canvas_histograma.get_tk_widget().pack(fill="both", expand=True)
 
-    # =========================================================================
-    # LÓGICA DEL BOXPLOT MULTIVARIABLE (CRITERIO DE TUKEY)
-    # =========================================================================
-
     def generar_boxplot(self):
-        """Valida las muestras activas y lanza el renderizado del Diagrama de Cajas."""
+        """Genera el Boxplot múltiple y actualiza la tabla de métricas externas."""
         if not self.grupos:
             messagebox.showwarning(
                 "Atención", "Primero debes cargar al menos un conjunto de datos."
@@ -491,21 +586,21 @@ class DataProcessorApp(ctk.CTk):
 
         self.tabview.set("Diagrama de Cajas y Bigotes")
         self._renderizar_boxplot_multiple(self.grupos)
+        self.actualizar_tabla_estadisticas()
 
     def _renderizar_boxplot_multiple(self, diccionario_grupos):
-        """Renderiza múltiples diagramas de caja en paralelo usando Matplotlib."""
+        """Dibuja las cajas comparativas en la pestaña correspondiente."""
         if self.canvas_boxplot:
             self.canvas_boxplot.get_tk_widget().destroy()
 
         if hasattr(self, "lbl_ph_box") and self.lbl_ph_box.winfo_exists():
             self.lbl_ph_box.destroy()
 
-        fig, ax = plt.subplots(figsize=(7, 4.5), dpi=100)
+        fig, ax = plt.subplots(figsize=(7, 4.2), dpi=100)
 
         nombres = list(diccionario_grupos.keys())
         datos_grupos = list(diccionario_grupos.values())
 
-        # Configuración estética de outliers (círculos vacíos)
         flierprops = dict(
             marker="o",
             markerfacecolor="none",
@@ -517,20 +612,18 @@ class DataProcessorApp(ctk.CTk):
         whiskerprops = dict(color="#333333", linewidth=1.5)
         capprops = dict(color="#333333", linewidth=1.5)
 
-        # Construcción del boxplot múltiple
         bp = ax.boxplot(
             datos_grupos,
             orientation="vertical",
             patch_artist=True,
-            whis=1.5,  # Bigotes extendidos a 1.5 * RIQ
+            whis=1.5,
             flierprops=flierprops,
             medianprops=medianprops,
             whiskerprops=whiskerprops,
             capprops=capprops,
-            tick_labels=nombres,  # Asignación de nombres en el eje X
+            tick_labels=nombres,
         )
 
-        # Asignación cromática por caja
         colores = [
             "#90CAF9",
             "#A5D6A7",
@@ -563,14 +656,14 @@ class DataProcessorApp(ctk.CTk):
     # =========================================================================
 
     def _obtener_nombre_grupo_valido(self):
-        """Genera un nombre por defecto si el usuario no especifica uno."""
+        """Asigna un nombre incremental por defecto si el campo está vacío."""
         nombre = self.ent_nombre_grupo.get().strip()
         if not nombre:
             nombre = f"Muestra {len(self.grupos) + 1}"
         return nombre
 
     def cargar_csv(self):
-        """Abre un diálogo de archivo y ejecuta la lectura en un hilo secundario."""
+        """Abre cuadro de diálogo para cargar archivos CSV."""
         ruta = filedialog.askopenfilename(
             filetypes=[("Archivos CSV", "*.csv"), ("Todos", "*.*")]
         )
@@ -582,7 +675,7 @@ class DataProcessorApp(ctk.CTk):
         ).start()
 
     def _leer_csv_thread(self, ruta):
-        """Identifica columnas numéricas sin bloquear la interfaz."""
+        """Detecta columnas numéricas sin bloquear la interfaz de usuario."""
         try:
             self.ruta_csv_actual = ruta
             cols = pd.read_csv(ruta, nrows=1000).columns
@@ -598,7 +691,7 @@ class DataProcessorApp(ctk.CTk):
             messagebox.showerror("Error", f"Error al leer CSV:\n{str(e)}")
 
     def _actualizar_combo_csv(self, columnas):
-        """Habilita la selección de columna en la GUI."""
+        """Actualiza el desplegable de columnas detectadas."""
         if columnas:
             self.combo_columnas.configure(state="normal", values=columnas)
             self.combo_columnas.set(columnas[0])
@@ -608,7 +701,7 @@ class DataProcessorApp(ctk.CTk):
             self.lbl_estado.configure(text="Estado: Selecciona columna.")
 
     def procesar_columna_csv(self):
-        """Extrae la columna seleccionada y la guarda como vector de NumPy."""
+        """Procesa y extrae la columna en formato NumPy."""
         col = self.combo_columnas.get()
         if not col or col == "N/A":
             return
@@ -626,7 +719,7 @@ class DataProcessorApp(ctk.CTk):
         threading.Thread(target=_cargar, daemon=True).start()
 
     def cargar_manual(self):
-        """Parsea la entrada de texto manual y la añade al diccionario."""
+        """Parsea los números escritos manualmente por el usuario."""
         texto = self.txt_manual.get("1.0", "end").strip()
         if not texto:
             return
@@ -642,7 +735,7 @@ class DataProcessorApp(ctk.CTk):
             messagebox.showerror("Error", "Ingresa únicamente números válidos.")
 
     def _actualizar_combos(self):
-        """Sincroniza el contenido de todos los menus desplegables."""
+        """Sincroniza los selectores desplegables."""
         nombres = list(self.grupos.keys())
         if nombres:
             self.combo_grupo_hist.configure(state="normal", values=nombres)
@@ -664,16 +757,17 @@ class DataProcessorApp(ctk.CTk):
             self.combo_eliminar.set("N/A")
 
     def _actualizar_resumen(self):
-        """Actualiza las etiquetas informativas del panel superior."""
+        """Actualiza el contador global de muestras."""
         total_datos = sum(len(v) for v in self.grupos.values())
         self.lbl_resumen.configure(
             text=f"Muestras cargadas: {len(self.grupos)} | Datos totales: {total_datos:,}"
         )
 
     def _actualizar_interfaz_tras_carga(self):
-        """Actualiza estados de la interfaz tras incorporar una nueva muestra."""
+        """Sincroniza la GUI e invoca el refresco de la tabla estadística."""
         self._actualizar_combos()
         self._actualizar_resumen()
+        self.actualizar_tabla_estadisticas()
         self.ent_nombre_grupo.delete(0, "end")
 
         nombres = list(self.grupos.keys())
@@ -682,10 +776,12 @@ class DataProcessorApp(ctk.CTk):
         )
 
     def limpiar_datos(self):
-        """Limpia todo el almacenamiento de muestras y destruye los canvas activos."""
+        """Restablece la aplicación a su estado inicial."""
         self.grupos.clear()
         self._actualizar_combos()
         self._actualizar_resumen()
+        self._mostrar_tabla_vacia()
+
         self.combo_columnas.configure(state="disabled", values=["N/A"])
         self.combo_columnas.set("N/A")
         self.btn_confirmar_columna.configure(state="disabled", fg_color="gray")
@@ -701,7 +797,7 @@ class DataProcessorApp(ctk.CTk):
 
 
 # =========================================================================
-# PUNTO DE ENTRADA DE LA APLICACIÓN
+# PUNTO DE ENTRADA
 # =========================================================================
 if __name__ == "__main__":
     app = DataProcessorApp()
